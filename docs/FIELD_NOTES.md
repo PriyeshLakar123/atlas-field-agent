@@ -31,7 +31,7 @@ Product feedback captured while building and deploying the agent. Format per ite
 
 ## 3. Prefix filters on paths need a range workaround
 
-**Behavior.** Scoping search to a folder (`runbooks/`) needed `{"source": {"$gte": prefix, "$lt": prefix + "￿"}}` inside the `$vectorSearch` filter, since regex is not supported there.
+**Behavior.** Scoping search to a folder (`runbooks/`) needed `{"source": {"$gte": prefix, "$lt": prefix + "\uffff"}}` inside the `$vectorSearch` filter, since regex is not supported there.
 
 **Impact.** Small, but every RAG deployment over a document tree hits it.
 
