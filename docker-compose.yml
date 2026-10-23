@@ -1,0 +1,33 @@
+# Local stack: Atlas (with Vector Search), the mock ticketing API, and the agent.
+#   docker compose up -d atlas tickets
+#   docker compose run --rm agent ingest
+#   docker compose run --rm agent ask "What's the status of INC-1042?"
+services:
+  atlas:
+    image: mongodb/mongodb-atlas-local:8
+    ports: ["27017:27017"]
+    healthcheck:
+      test: ["CMD", "/usr/local/bin/runner", "healthcheck"]
+      interval: 5s
+      retries: 30
+
+  tickets:
+    build: .
+    entrypoint: ["uvicorn", "mock_ticketing.app:app", "--host", "0.0.0.0", "--port", "8080"]
+    ports: ["8080:8080"]
+    environment:
+      MOCK_FAIL_RATE: ${MOCK_FAIL_RATE:-0}
+
+  agent:
+    build: .
+    depends_on:
+      atlas: { condition: service_healthy }
+      tickets: { condition: service_started }
+    environment:
+      MONGODB_URI: mongodb://atlas:27017/?directConnection=true
+      TICKET_API_URL: http://tickets:8080
+      FIELDAGENT_EMBEDDER: ${FIELDAGENT_EMBEDDER:-hash}
+      VOYAGE_API_KEY: ${VOYAGE_API_KEY:-}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+    volumes:
+      - ./evals:/app/evals

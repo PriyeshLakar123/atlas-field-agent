@@ -1,0 +1,37 @@
+name: ci
+
+on: [push, pull_request]
+
+jobs:
+  unit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12" }
+      - run: pip install -r requirements-dev.txt
+      - run: pytest -q
+      - name: Retrieval eval gate (offline)
+        run: python -m fieldagent eval --retrieval-only --in-memory --min-recall 0.9
+
+  atlas-integration:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12" }
+      - run: pip install -r requirements-dev.txt
+      - name: Start Atlas Local
+        run: |
+          docker run -d --name atlas -p 27017:27017 mongodb/mongodb-atlas-local:8
+          for i in $(seq 1 60); do
+            [ "$(docker inspect -f '{{.State.Health.Status}}' atlas)" = "healthy" ] && exit 0
+            sleep 3
+          done
+          docker logs atlas; exit 1
+      - name: Vector search integration test
+        run: ATLAS_INTEGRATION=1 pytest -q tests/test_atlas_integration.py
+      - name: Ingest and retrieval eval against Atlas
+        run: |
+          python -m fieldagent ingest
+          python -m fieldagent eval --retrieval-only --min-recall 0.9
